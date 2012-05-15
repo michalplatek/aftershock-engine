@@ -571,9 +571,9 @@ void SV_DropClient( client_t *drop, const char *reason ) {
 		}
 	}
 	
-	if (sv_autorecord->integer && drop->demorecording) {
+	/*if (sv_autorecord->integer && drop->demorecording) {
  		SV_StopRecord( drop );
-	}
+	}*/
 
 	// Kill any download
 	SV_CloseDownload( drop );
@@ -734,12 +734,12 @@ void SV_ClientEnterWorld( client_t *client, usercmd_t *cmd ) {
 	// call the game begin function
 	VM_Call( gvm, GAME_CLIENT_BEGIN, client - svs.clients );
 	
-	if (sv_autorecord->integer && client->netchan.remoteAddress.type != NA_BOT) {
+	/*if (sv_autorecord->integer && client->netchan.remoteAddress.type != NA_BOT) {
  		if (client->demorecording) {
 		  	SV_StopRecord( client );
  		}
  		SV_Record(client, 0);
- 	}
+ 	}*/
 }
 
 /*
