@@ -63,7 +63,7 @@ cvar_t  *sv_heartbeat;			// Heartbeat string that is sent to the master
 cvar_t  *sv_flatline;			// If the master server supports it we can send a flatline
 					// when server is killed
 					
-cvar_t	*sv_autorecord;
+//cvar_t	*sv_autorecord;
 
 serverBan_t serverBans[SERVER_MAXBANS];
 int serverBansCount = 0;

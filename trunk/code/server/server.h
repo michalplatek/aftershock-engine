@@ -295,7 +295,7 @@ extern	int serverBansCount;
 extern	cvar_t	*sv_voip;
 #endif
 
-extern cvar_t 	*sv_autorecord;
+//extern cvar_t 	*sv_autorecord;
 
 
 //===========================================================

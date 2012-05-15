@@ -205,13 +205,13 @@ static void SV_Map_f( void ) {
 		}
 	}
 	
-	if (sv_autorecord->integer && svs.initialized) {
+	/*if (sv_autorecord->integer && svs.initialized) {
  		for (i=0, cl = svs.clients ; i < sv_maxclients->integer ; i++, cl++) {
  			if (cl->state >= CS_CONNECTED && cl->demorecording) {
  				SV_StopRecord( cl );
  			}
  		}
- 	}
+ 	}*/
 
 	// save the map name here cause on a map restart we reload the q3config.cfg
 	// and thus nuke the arguments of the map command
@@ -289,13 +289,13 @@ static void SV_MapRestart_f( void ) {
 		return;
 	}
 	
-	if (sv_autorecord->integer) {
+	/*if (sv_autorecord->integer) {
  		for (j=0, cl = svs.clients ; j < sv_maxclients->integer ; j++, cl++) {
  			if (cl && cl->state && cl->state >= CS_CONNECTED && cl->demorecording) {
  				SV_StopRecord( cl );
  			}
  		}
- 	}
+ 	}*/
 
 	// toggle the server bit so clients can detect that a
 	// map_restart has happened
@@ -1340,9 +1340,9 @@ static void SV_CompleteMapName( char *args, int argNum ) {
  	FS_FCloseFile (cl->demofile);
  
  
- 	if (!sv_autorecord->integer) {
+ 	//if (!sv_autorecord->integer) {
  		Com_Printf ("Stopped demo for client %i.\n", clientnum);
- 	} else {
+ 	/*} else {
  		ps = SV_GameClientNum( clientnum );
  		Com_Printf ("ps->persistant[PERS_SCORE] = %i",ps->persistant[PERS_SCORE]);
  		fraglimit = Cvar_Get("fraglimit", "30", CVAR_SERVERINFO);
@@ -1354,7 +1354,7 @@ static void SV_CompleteMapName( char *args, int argNum ) {
  			Com_Printf ("Stoprecord: %i: abort\n", clientnum);
  			FS_HomeRemove(cl->demoName);
  		}
- 	}
+ 	}*/
  
  	cl->demofile = 0;
  	cl->demorecording = qfalse;
@@ -1454,11 +1454,11 @@ static void SV_CompleteMapName( char *args, int argNum ) {
  
  	// open the demo file
  
- 	if (!sv_autorecord->integer) {
+ 	//if (!sv_autorecord->integer) {
  		Com_Printf ("recording client %i to %s.\n", clientnum, name);
- 	} else {
+ 	/*} else {
  		Com_Printf ("Record: %i: %s\n", clientnum, name);
- 	}
+ 	}*/
  
  	cl->demofile = FS_FOpenFileWrite( name );
  	if ( !cl->demofile ) {
