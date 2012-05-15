@@ -615,10 +615,10 @@ static void LerpMeshVertexes_altivec(md3Surface_t *surf, float backlerp)
 {
 	short	*oldXyz, *newXyz, *oldNormals, *newNormals;
 	float	*outXyz, *outNormal;
-	float	oldXyzScale ALIGN(16);
-	float   newXyzScale ALIGN(16);
-	float	oldNormalScale ALIGN(16);
-	float newNormalScale ALIGN(16);
+	float	oldXyzScale QALIGN(16);
+	float   newXyzScale QALIGN(16);
+	float	oldNormalScale QALIGN(16);
+	float newNormalScale QALIGN(16);
 	int		vertNum;
 	unsigned lat, lng;
 	int		numVerts;
@@ -1216,8 +1216,12 @@ static void RB_SurfaceBad( surfaceType_t *surfType ) {
 
 static void RB_SurfaceFlare(srfFlare_t *surf)
 {
-	if (r_flares->integer)
-		RB_AddFlare(surf, tess.fogNum, surf->origin, surf->color, surf->normal);
+	if (r_flares->integer) {
+		if (r_flaresSurfradii->integer)		
+			RB_AddFlare(surf, tess.fogNum, surf->origin, surf->color, surf->normal, surf->normal[2] * 5);
+		else
+			RB_AddFlare(surf, tess.fogNum, surf->origin, surf->color, surf->normal, 0);
+	}
 }
 
 static void RB_SurfaceDisplayList( srfDisplayList_t *surf ) {

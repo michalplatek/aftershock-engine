@@ -31,6 +31,13 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
   #define CLIENT_WINDOW_TITLE     	"OpenArena"
   #define CLIENT_WINDOW_MIN_TITLE 	"OA"
   #define GAMENAME_FOR_MASTER		"openarena"	// must NOT contain whitespaces
+  #define HEARTBEAT_FOR_MASTER          "QuakeArena-1"
+  #define FLATLINE_FOR_MASTER           HEARTBEAT_FOR_MASTER
+
+#define STANDALONE 1
+#define BASETA				"missionpack"
+
+#define HOMEPATH_NAME_UNIX		".openarena"
 
 #ifdef _MSC_VER
   #define PRODUCT_VERSION "1.35"
@@ -38,7 +45,8 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 #define Q3_VERSION PRODUCT_NAME " " PRODUCT_VERSION
 
-#define MAX_TEAMNAME 32
+#define MAX_TEAMNAME		32
+#define MAX_MASTER_SERVERS      5	// number of supported master servers
 
 #ifdef _MSC_VER
 
@@ -117,16 +125,6 @@ typedef int intptr_t;
 #include <ctype.h>
 #include <limits.h>
 
-// vsnprintf is ISO/IEC 9899:1999
-// abstracting this to make it portable
-#ifdef _WIN32
-  #define Q_vsnprintf _vsnprintf
-  #define Q_snprintf _snprintf
-#else
-  #define Q_vsnprintf vsnprintf
-  #define Q_snprintf snprintf
-#endif
-
 #ifdef _MSC_VER
   #include <io.h>
 
@@ -138,8 +136,14 @@ typedef int intptr_t;
   typedef unsigned __int32 uint32_t;
   typedef unsigned __int16 uint16_t;
   typedef unsigned __int8 uint8_t;
+
+  // vsnprintf is ISO/IEC 9899:1999
+  // abstracting this to make it portable
+  int Q_vsnprintf(char *str, size_t size, const char *format, va_list ap);
 #else
   #include <stdint.h>
+
+  #define Q_vsnprintf vsnprintf
 #endif
 
 #endif
@@ -167,9 +171,9 @@ typedef int		clipHandle_t;
 #define PAD(x,y) (((x)+(y)-1) & ~((y)-1))
 
 #ifdef __GNUC__
-#define ALIGN(x) __attribute__((aligned(x)))
+#define QALIGN(x) __attribute__((aligned(x)))
 #else
-#define ALIGN(x)
+#define QALIGN(x)
 #endif
 
 #ifndef NULL
@@ -182,6 +186,8 @@ typedef int		clipHandle_t;
 
 #define	MAX_QINT			0x7fffffff
 #define	MIN_QINT			(-MAX_QINT-1)
+
+#define ARRAY_LEN(x)			(sizeof(x) / sizeof(*(x)))
 
 
 // angle indexes
@@ -356,29 +362,31 @@ extern	vec4_t		colorLtGrey;
 extern	vec4_t		colorMdGrey;
 extern	vec4_t		colorDkGrey;
 
+#define NUMBER_OF_COLORS 9
 #define Q_COLOR_ESCAPE	'^'
-#define Q_IsColorString(p)	((p) && *(p) == Q_COLOR_ESCAPE && *((p)+1) && isalnum(*((p)+1))) // ^[0-9a-zA-Z]
-
-#define COLOR_BLACK	'0'
-#define COLOR_RED	'1'
-#define COLOR_GREEN	'2'
+#define Q_IsColorString(p)      ((p) && *(p) == Q_COLOR_ESCAPE && *((p)+1) && *((p)+1) >= '0' && *((p)+1) <= '8') // ^[0-8]
+#define COLOR_BLACK		'0'
+#define COLOR_RED		'1'
+#define COLOR_GREEN		'2'
 #define COLOR_YELLOW	'3'
-#define COLOR_BLUE	'4'
-#define COLOR_CYAN	'5'
+#define COLOR_BLUE		'4'
+#define COLOR_CYAN		'5'
 #define COLOR_MAGENTA	'6'
-#define COLOR_WHITE	'7'
-#define ColorIndex(c)	(((c) - '0') & 0x07)
+#define COLOR_WHITE		'7'
+#define COLOR_MENU      '8'
+#define ColorIndex(c)   ((c) - '0')
 
 #define S_COLOR_BLACK	"^0"
-#define S_COLOR_RED	"^1"
+#define S_COLOR_RED		"^1"
 #define S_COLOR_GREEN	"^2"
 #define S_COLOR_YELLOW	"^3"
 #define S_COLOR_BLUE	"^4"
 #define S_COLOR_CYAN	"^5"
 #define S_COLOR_MAGENTA	"^6"
 #define S_COLOR_WHITE	"^7"
+#define S_COLOR_MENU	"^8"
 
-extern vec4_t	g_color_table[8];
+extern vec4_t	g_color_table[NUMBER_OF_COLORS];
 
 #define	MAKERGB( v, r, g, b ) v[0]=r;v[1]=g;v[2]=b
 #define	MAKERGBA( v, r, g, b, a ) v[0]=r;v[1]=g;v[2]=b;v[3]=a
@@ -623,6 +631,7 @@ float Com_Clamp( float min, float max, float value );
 char	*COM_SkipPath( char *pathname );
 const char	*COM_GetExtension( const char *name );
 void	COM_StripExtension(const char *in, char *out, int destsize);
+qboolean COM_CompareExtension(const char *in, const char *ext);
 void	COM_DefaultExtension( char *path, int maxSize, const char *extension );
 
 void	COM_BeginParseSession( const char *name );
@@ -951,8 +960,7 @@ typedef enum {
 //
 // per-level limits
 //
-#define CLIENTNUM_BITS		6
-#define	MAX_CLIENTS			(1<<CLIENTNUM_BITS)		// absolute limit
+#define	MAX_CLIENTS			64		// absolute limit
 #define MAX_LOCATIONS		64
 
 #define	GENTITYNUM_BITS		10		// don't need to send any more
@@ -1291,5 +1299,8 @@ typedef enum _flag_status {
 #define CDKEY_LEN 16
 #define CDCHKSUM_LEN 2
 
+
+#define LERP( a, b, w ) ( ( a ) * ( 1.0f - ( w ) ) + ( b ) * ( w ) )
+#define LUMA( red, green, blue ) ( 0.2126f * ( red ) + 0.7152f * ( green ) + 0.0722f * ( blue ) )
 
 #endif	// __Q_SHARED_H

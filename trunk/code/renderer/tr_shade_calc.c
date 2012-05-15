@@ -359,10 +359,10 @@ static void AutospriteDeform( void ) {
 	vec3_t	leftDir, upDir;
 
 	if ( tess.numVertexes & 3 ) {
-		ri.Printf( PRINT_WARNING, "Autosprite shader %s had odd vertex count", tess.shader->name );
+		ri.Printf( PRINT_WARNING, "Autosprite shader %s had odd vertex count\n", tess.shader->name );
 	}
 	if ( tess.numIndexes != ( tess.numVertexes >> 2 ) * 6 ) {
-		ri.Printf( PRINT_WARNING, "Autosprite shader %s had odd index count", tess.shader->name );
+		ri.Printf( PRINT_WARNING, "Autosprite shader %s had odd index count\n", tess.shader->name );
 	}
 
 	oldVerts = tess.numVertexes;
@@ -915,6 +915,83 @@ void RB_CalcEnvironmentTexCoords( float *st )
 }
 
 /*
+** RB_CalcEnvironmentTexCoordsNew
+
+	This one also is offset by origin and axis which makes it look better on moving
+	objects and weapons. May be slow.
+
+*/
+void RB_CalcEnvironmentTexCoordsNew( float *st ) 
+{
+
+	int			i;
+	float		*v, *normal;
+	vec3_t		viewer, reflected, where, what, why, who;
+	float		d, a;
+
+	v = tess.xyz[0];
+	normal = tess.normal[0];
+
+	for (i = 0 ; i < tess.numVertexes ; i++, v += 4, normal += 4, st += 2 ) 
+	{
+
+		VectorSubtract (backEnd.or.axis[0], v, what);
+		VectorSubtract (backEnd.or.axis[1], v, why);
+		VectorSubtract (backEnd.or.axis[2], v, who);
+
+		VectorSubtract (backEnd.or.origin, v, where);
+		VectorSubtract (backEnd.or.viewOrigin, v, viewer);
+
+		VectorNormalizeFast (viewer);
+		VectorNormalizeFast (where);
+		VectorNormalizeFast (what);
+		VectorNormalizeFast (why);
+		VectorNormalizeFast (who);
+
+		d = DotProduct (normal, viewer);
+		a = DotProduct (normal, where);
+
+		if ( backEnd.currentEntity == &tr.worldEntity ){
+
+		reflected[0] = normal[0]*2*d - viewer[0];
+		reflected[1] = normal[1]*2*d - viewer[1];
+		reflected[2] = normal[2]*2*d - viewer[2];
+
+		}
+	else
+		{
+		reflected[0] = normal[0]*2*d - viewer[0] - (where[0] * 5) + (what[0] * 4);
+		reflected[1] = normal[1]*2*d - viewer[1] - (where[1] * 5) + (why[1] * 4);
+		reflected[2] = normal[2]*2*d - viewer[2] - (where[2] * 5) + (who[2] * 4);
+
+
+		}
+		st[0] = 0.33 + reflected[1] * 0.33;
+		st[1] = 0.33 - reflected[2] * 0.33;
+	}
+}
+
+
+/*
+** RB_CalcEnvironmentTexCoordsHW
+
+	Hardware-native cubemapping (or sphere mapping if the former is unsupported)
+
+	adapted from this tremulous patch by Odin 
+
+	NOTE: THIS BREAKS OTHER TCMODS IN A STAGE
+*/
+void RB_CalcEnvironmentTexCoordsHW() 
+{
+	qglTexGeni(GL_S, GL_TEXTURE_GEN_MODE, GL_REFLECTION_MAP);
+	qglTexGeni(GL_T, GL_TEXTURE_GEN_MODE, GL_REFLECTION_MAP);
+	qglTexGeni(GL_R, GL_TEXTURE_GEN_MODE, GL_REFLECTION_MAP);
+	qglEnable(GL_TEXTURE_GEN_S);
+	qglEnable(GL_TEXTURE_GEN_T);
+	qglEnable(GL_TEXTURE_GEN_R);
+}
+
+/*
 ** RB_CalcTurbulentTexCoords
 */
 void RB_CalcTurbulentTexCoords( const waveForm_t *wf, float *st )
@@ -1090,6 +1167,62 @@ void RB_CalcSpecularAlpha( unsigned char *alphas ) {
 
 		*alphas = b;
 	}
+}
+
+// This fixed version comes from ZEQ2Lite
+void RB_CalcSpecularAlphaNew( unsigned char *alphas ) {
+int			i;
+	float		*v, *normal;
+	vec3_t		viewer,  reflected;
+	float		l, d;
+	int			b;
+	vec3_t		lightDir;
+	int			numVertexes;
+
+	v = tess.xyz[0];
+	normal = tess.normal[0];
+
+	alphas += 3;
+
+	numVertexes = tess.numVertexes;
+	for (i = 0 ; i < numVertexes ; i++, v += 4, normal += 4, alphas += 4) {
+		float ilength;
+
+		if ( backEnd.currentEntity == &tr.worldEntity )
+			VectorSubtract( lightOrigin, v, lightDir );	// old compatibility with maps that use it on some models
+		else
+			VectorCopy( backEnd.currentEntity->lightDir, lightDir );
+
+		VectorNormalizeFast( lightDir );
+
+		// calculate the specular color
+		d = DotProduct (normal, lightDir);
+
+		// we don't optimize for the d < 0 case since this tends to
+		// cause visual artifacts such as faceted "snapping"
+		reflected[0] = normal[0]*2*d - lightDir[0];
+		reflected[1] = normal[1]*2*d - lightDir[1];
+		reflected[2] = normal[2]*2*d - lightDir[2];
+
+		VectorSubtract (backEnd.or.viewOrigin, v, viewer);
+		ilength = Q_rsqrt( DotProduct( viewer, viewer ) );
+		l = DotProduct (reflected, viewer);
+		l *= ilength;
+
+		if (l < 0) {
+			b = 0;
+		} else {
+			l = l*l;
+			l = l*l;
+			b = l * 255;
+			if (b > 255) {
+				b = 255;
+			}
+		}
+
+		*alphas = b;
+	}
+
 }
 
 /*

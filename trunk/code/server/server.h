@@ -85,15 +85,6 @@ typedef struct {
 	sharedEntity_t	*gentities;
 	int				gentitySize;
 	int				num_entities;		// current number, <= MAX_GENTITIES
-	
-	// demo recording
-	fileHandle_t	demoFile;
-	demoState_t		demoState;
-	char			demoName[MAX_QPATH];
-
-	// previous frame for delta compression
-	sharedEntity_t	demoEntities[MAX_GENTITIES];
-	playerState_t	demoPlayerStates[MAX_CLIENTS];
 
 	playerState_t	*gameClients;
 	int				gameClientSize;		// will be > sizeof(playerState_t) due to game private data
@@ -153,6 +144,14 @@ typedef struct client_s {
 	char			lastClientCommandString[MAX_STRING_CHARS];
 	sharedEntity_t	*gentity;			// SV_GentityNum(clientnum)
 	char			name[MAX_NAME_LENGTH];			// extracted from userinfo, high bits masked
+	
+	//demo information
+	char 			demoName[MAX_QPATH];
+	qboolean 		demorecording;
+	qboolean 		demowaiting;
+	fileHandle_t 		demofile;
+	clientSnapshot_t 	*olddemoframe;
+	qboolean 		savedemo;
 
 	// downloading
 	char			downloadName[MAX_QPATH]; // if not empty string, we are downloading
@@ -221,10 +220,6 @@ typedef struct {
 	qboolean	connected;
 } challenge_t;
 
-
-#define	MAX_MASTERS	8				// max recipients for heartbeat packets
-
-
 // this structure will be cleared only when the game dll changes
 typedef struct {
 	qboolean	initialized;				// sv_init has completed
@@ -261,8 +256,6 @@ extern	serverStatic_t	svs;				// persistant server info across maps
 extern	server_t		sv;					// cleared each map
 extern	vm_t			*gvm;				// game virtual machine
 
-#define	MAX_MASTER_SERVERS	5
-
 extern	cvar_t	*sv_fps;
 extern	cvar_t	*sv_timeout;
 extern	cvar_t	*sv_zombietime;
@@ -270,7 +263,6 @@ extern	cvar_t	*sv_rconPassword;
 extern	cvar_t	*sv_privatePassword;
 extern	cvar_t	*sv_allowDownload;
 extern	cvar_t	*sv_maxclients;
-extern	cvar_t	*sv_democlients;
 
 extern	cvar_t	*sv_privateClients;
 extern	cvar_t	*sv_hostname;
@@ -293,9 +285,8 @@ extern	cvar_t	*sv_floodProtect;
 extern	cvar_t	*sv_lanForceRate;
 extern	cvar_t	*sv_public; 
 extern	cvar_t	*sv_banFile;
-
-extern	cvar_t	*sv_demoState;
-extern	cvar_t	*sv_autoDemo;
+extern	cvar_t	*sv_heartbeat;
+extern	cvar_t	*sv_flatline;
 
 extern	serverBan_t serverBans[SERVER_MAXBANS];
 extern	int serverBansCount;
@@ -303,6 +294,8 @@ extern	int serverBansCount;
 #ifdef USE_VOIP
 extern	cvar_t	*sv_voip;
 #endif
+
+extern cvar_t 	*sv_autorecord;
 
 
 //===========================================================
@@ -318,16 +311,14 @@ void SV_AddOperatorCommands (void);
 void SV_RemoveOperatorCommands (void);
 
 
-void SV_MasterHeartbeat (void);
 void SV_MasterShutdown (void);
-
 
 
 
 //
 // sv_init.c
 //
-void SV_SetConfigstring( int index, const char *val, qboolean force );
+void SV_SetConfigstring( int index, const char *val );
 void SV_GetConfigstring( int index, char *buffer, int bufferSize );
 void SV_UpdateConfigstrings( client_t *client );
 
@@ -375,7 +366,7 @@ void SV_Heartbeat_f( void );
 // sv_snapshot.c
 //
 void SV_AddServerCommand( client_t *client, const char *cmd );
-void SV_UpdateServerCommandsToClient( client_t *client, msg_t *msg );
+void SV_UpdateServerCommandsToClient( client_t *client, msg_t *msg, msg_t *msg_demo );
 void SV_WriteFrameToClient (client_t *client, msg_t *msg);
 void SV_SendMessageToClient( msg_t *msg, client_t *client );
 void SV_SendClientMessages( void );
@@ -411,19 +402,6 @@ int BotImport_DebugPolygonCreate(int color, int numPoints, vec3_t *points);
 void BotImport_DebugPolygonDelete(int id);
 
 void SV_BotInitBotLib(void);
-
-//
-// sv_demo.c
-//
-void SV_DemoStartRecord(void);
-void SV_DemoStopRecord(void);
-void SV_DemoStartPlayback(void);
-void SV_DemoStopPlayback(void);
-void SV_DemoReadFrame(void);
-void SV_DemoWriteFrame(void);
-void SV_DemoWriteServerCommand(const char *str);
-void SV_DemoWriteGameCommand(int cmd, const char *str);
-void SV_DemoWriteConfigString(int client);
 
 //============================================================
 //

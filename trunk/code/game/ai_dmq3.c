@@ -685,7 +685,7 @@ void BotCTFSeekGoals(bot_state_t *bs) {
 	if ( bs->lastgoal_ltgtype ) {
 		bs->teamgoal_time += 60;
 	}
-	// if the bot decided to do something on it's own and has a last ordered goal
+	// if the bot decided to do something on its own and has a last ordered goal
 	if ( !bs->ordered && bs->lastgoal_ltgtype ) {
 		bs->ltgtype = 0;
 	}
@@ -931,7 +931,7 @@ void Bot1FCTFSeekGoals(bot_state_t *bs) {
 	if ( bs->lastgoal_ltgtype ) {
 		bs->teamgoal_time += 60;
 	}
-	// if the bot decided to do something on it's own and has a last ordered goal
+	// if the bot decided to do something on its own and has a last ordered goal
 	if ( !bs->ordered && bs->lastgoal_ltgtype ) {
 		bs->ltgtype = 0;
 	}
@@ -1488,7 +1488,8 @@ char *EasyClientName(int client, char *buf, int size) {
 	char *str1, *str2, *ptr, c;
 	char name[128];
 
-	strcpy(name, ClientName(client, name, sizeof(name)));
+	ClientName(client, name, sizeof(name));
+	
 	for (i = 0; name[i]; i++) name[i] &= 127;
 	//remove all spaces
 	for (ptr = strstr(name, " "); ptr; ptr = strstr(name, " ")) {
@@ -2510,7 +2511,7 @@ int BotWantsToCamp(bot_state_t *bs) {
 	//if the bot isn't healthy anough
 	if (BotAggression(bs) < 50) return qfalse;
 	//the bot should have at least have the rocket launcher, the railgun or the bfg10k with some ammo
-	if ((bs->inventory[INVENTORY_ROCKETLAUNCHER] <= 0 || bs->inventory[INVENTORY_ROCKETS < 10]) &&
+	if ((bs->inventory[INVENTORY_ROCKETLAUNCHER] <= 0 || bs->inventory[INVENTORY_ROCKETS] < 10) &&
 		(bs->inventory[INVENTORY_RAILGUN] <= 0 || bs->inventory[INVENTORY_SLUGS] < 10) &&
 		(bs->inventory[INVENTORY_BFG10K] <= 0 || bs->inventory[INVENTORY_BFGAMMO] < 10)) {
 		return qfalse;
@@ -4530,7 +4531,7 @@ BotAIPredictObstacles
 
 Predict the route towards the goal and check if the bot
 will be blocked by certain obstacles. When the bot has obstacles
-on it's path the bot should figure out if they can be removed
+on its path the bot should figure out if they can be removed
 by activating certain entities.
 ==================
 */

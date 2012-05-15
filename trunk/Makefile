@@ -4,7 +4,7 @@
 # GNU Make required
 #
 
-COMPILE_PLATFORM=$(shell uname|sed -e s/_.*//|tr '[:upper:]' '[:lower:]')
+COMPILE_PLATFORM=$(shell uname|sed -e s/_.*//|tr '[:upper:]' '[:lower:]'|sed -e 's/\//_/g')
 
 COMPILE_ARCH=$(shell uname -m | sed -e s/i.86/i386/)
 
@@ -27,13 +27,13 @@ ifndef BUILD_STANDALONE
   BUILD_STANDALONE =
 endif
 ifndef BUILD_CLIENT
-  BUILD_CLIENT     = 1
+  BUILD_CLIENT     =
 endif
 ifndef BUILD_CLIENT_SMP
-  BUILD_CLIENT_SMP = 1
+  BUILD_CLIENT_SMP =
 endif
 ifndef BUILD_SERVER
-  BUILD_SERVER     = 1
+  BUILD_SERVER     =
 endif
 ifndef BUILD_GAME_SO
   BUILD_GAME_SO    = 0
@@ -88,7 +88,7 @@ endif
 export CROSS_COMPILING
 
 ifndef COPYDIR
-COPYDIR="/usr/local/games/aftershock"
+COPYDIR="/usr/local/games/openarena"
 endif
 
 ifndef COPYBINDIR
@@ -103,6 +103,10 @@ ifndef BUILD_DIR
 BUILD_DIR=build
 endif
 
+ifndef TEMPDIR
+TEMPDIR=/tmp
+endif
+
 ifndef GENERATE_DEPENDENCIES
 GENERATE_DEPENDENCIES=1
 endif
@@ -111,7 +115,7 @@ ifndef USE_OPENAL
 USE_OPENAL=1
 endif
 
-#Sago: Not a standard option in aftershock anymore
+#Sago: Not a standard option in openarena anymore
 USE_OPENAL_DLOPEN=1
 
 ifndef USE_OPENAL_DLOPEN
@@ -187,7 +191,6 @@ LOKISETUPDIR=misc/setup
 NSISDIR=misc/nsis
 SDLHDIR=$(MOUNT_DIR)/SDL12
 LIBSDIR=$(MOUNT_DIR)/libs
-TEMPDIR=/tmp
 
 bin_path=$(shell which $(1) 2> /dev/null)
 
@@ -242,10 +245,10 @@ LIB=lib
 INSTALL=install
 MKDIR=mkdir
 
-ifeq ($(PLATFORM),linux)
+ifneq (,$(findstring "$(PLATFORM)", "linux" "gnu_kfreebsd" "kfreebsd-gnu"))
 
-  ifeq ($(ARCH),alpha)
-    ARCH=axp
+  ifeq ($(ARCH),axp)
+    ARCH=alpha
   else
   ifeq ($(ARCH),x86_64)
     LIB=lib64
@@ -312,6 +315,11 @@ ifeq ($(PLATFORM),linux)
     OPTIMIZE += -mtune=ultrasparc3 -mv8plus
     OPTIMIZEVM += -mtune=ultrasparc3 -mv8plus
     HAVE_VM_COMPILED=true
+  endif
+  ifeq ($(ARCH),alpha)
+    # According to http://bugs.debian.org/cgi-bin/bugreport.cgi?bug=410555
+    # -ffast-math will cause the client to die with SIGFPE on Alpha
+    OPTIMIZE = $(OPTIMIZEVM)
   endif
   endif
   endif
@@ -569,8 +577,8 @@ ifeq ($(PLATFORM),freebsd)
   SERVER_CFLAGS = 
   HAVE_VM_COMPILED = true
 
-  OPTIMIZEVM = -O3 -funroll-loops -fomit-frame-pointer -ffast-math
-  OPTIMIZE = $(OPTIMIZEVM)
+  OPTIMIZEVM = -O3 -funroll-loops -fomit-frame-pointer
+  OPTIMIZE = $(OPTIMIZEVM) -ffast-math
 
   SHLIBEXT=so
   SHLIBCFLAGS=-fPIC
@@ -842,13 +850,13 @@ ifndef SHLIBNAME
 endif
 
 ifneq ($(BUILD_SERVER),0)
-  TARGETS += $(B)/as_ded$(FULLBINEXT)
+  TARGETS += $(B)/oa_ded$(FULLBINEXT)
 endif
 
 ifneq ($(BUILD_CLIENT),0)
-  TARGETS += $(B)/aftershock$(FULLBINEXT)
+  TARGETS += $(B)/openarena$(FULLBINEXT)
   ifneq ($(BUILD_CLIENT_SMP),0)
-    TARGETS += $(B)/aftershock-smp$(FULLBINEXT)
+    TARGETS += $(B)/openarena-smp$(FULLBINEXT)
   endif
 endif
 
@@ -1041,7 +1049,7 @@ release:
 # an informational message, then start building
 targets: makedirs
 	@echo ""
-	@echo "Building aftershock in $(B):"
+	@echo "Building openarena in $(B):"
 	@echo "  PLATFORM: $(PLATFORM)"
 	@echo "  ARCH: $(ARCH)"
 	@echo "  VERSION: $(VERSION)"
@@ -1348,7 +1356,6 @@ Q3OBJ = \
   \
   $(B)/client/sv_bot.o \
   $(B)/client/sv_ccmds.o \
-  $(B)/client/sv_demo.o \
   $(B)/client/sv_client.o \
   $(B)/client/sv_game.o \
   $(B)/client/sv_init.o \
@@ -1589,13 +1596,13 @@ Q3POBJ += \
 Q3POBJ_SMP += \
   $(B)/clientsmp/sdl_glimp.o
 
-$(B)/aftershock$(FULLBINEXT): $(Q3OBJ) $(Q3POBJ) $(LIBSDLMAIN)
+$(B)/openarena$(FULLBINEXT): $(Q3OBJ) $(Q3POBJ) $(LIBSDLMAIN)
 	$(echo_cmd) "LD $@"
 	$(Q)$(CC) $(CLIENT_CFLAGS) $(CFLAGS) $(CLIENT_LDFLAGS) $(LDFLAGS) \
 		-o $@ $(Q3OBJ) $(Q3POBJ) \
 		$(LIBSDLMAIN) $(CLIENT_LIBS) $(LIBS)
 
-$(B)/aftershock-smp$(FULLBINEXT): $(Q3OBJ) $(Q3POBJ_SMP) $(LIBSDLMAIN)
+$(B)/openarena-smp$(FULLBINEXT): $(Q3OBJ) $(Q3POBJ_SMP) $(LIBSDLMAIN)
 	$(echo_cmd) "LD $@"
 	$(Q)$(CC) $(CLIENT_CFLAGS) $(CFLAGS) $(CLIENT_LDFLAGS) $(LDFLAGS) $(THREAD_LDFLAGS) \
 		-o $@ $(Q3OBJ) $(Q3POBJ_SMP) \
@@ -1618,7 +1625,6 @@ endif
 Q3DOBJ = \
   $(B)/ded/sv_bot.o \
   $(B)/ded/sv_client.o \
-  $(B)/ded/sv_demo.o \
   $(B)/ded/sv_ccmds.o \
   $(B)/ded/sv_game.o \
   $(B)/ded/sv_init.o \
@@ -1750,7 +1756,7 @@ endif
 #    $(B)/ded/sys_cocoa.o
 #endif
 
-$(B)/as_ded$(FULLBINEXT): $(Q3DOBJ)
+$(B)/oa_ded$(FULLBINEXT): $(Q3DOBJ)
 	$(echo_cmd) "LD $@"
 	$(Q)$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $(Q3DOBJ) $(LIBS)
 
@@ -2217,17 +2223,17 @@ copyfiles: release
 	-$(MKDIR) -p -m 0755 $(COPYDIR)/missionpack
 
 ifneq ($(BUILD_CLIENT),0)
-	$(INSTALL) $(STRIP_FLAG) -m 0755 $(BR)/aftershock$(FULLBINEXT) $(COPYBINDIR)/aftershock$(FULLBINEXT)
+	$(INSTALL) $(STRIP_FLAG) -m 0755 $(BR)/openarena$(FULLBINEXT) $(COPYBINDIR)/openarena$(FULLBINEXT)
 endif
 
 # Don't copy the SMP until it's working together with SDL.
 #ifneq ($(BUILD_CLIENT_SMP),0)
-#	$(INSTALL) $(STRIP_FLAG) -m 0755 $(BR)/aftershock-smp$(FULLBINEXT) $(COPYBINDIR)/aftershock-smp$(FULLBINEXT)
+#	$(INSTALL) $(STRIP_FLAG) -m 0755 $(BR)/openarena-smp$(FULLBINEXT) $(COPYBINDIR)/openarena-smp$(FULLBINEXT)
 #endif
 
 ifneq ($(BUILD_SERVER),0)
-	@if [ -f $(BR)/as_ded$(FULLBINEXT) ]; then \
-		$(INSTALL) $(STRIP_FLAG) -m 0755 $(BR)/as_ded$(FULLBINEXT) $(COPYBINDIR)/as_ded$(FULLBINEXT); \
+	@if [ -f $(BR)/oa_ded$(FULLBINEXT) ]; then \
+		$(INSTALL) $(STRIP_FLAG) -m 0755 $(BR)/oa_ded$(FULLBINEXT) $(COPYBINDIR)/oa_ded$(FULLBINEXT); \
 	fi
 endif
 
@@ -2293,10 +2299,10 @@ else
 endif
 
 dist:
-	rm -rf aftershock-$(VERSION)
-	svn export . aftershock-$(VERSION)
-	tar --owner=root --group=root --force-local -cjf aftershock-$(VERSION).tar.bz2 aftershock-$(VERSION)
-	rm -rf aftershock-$(VERSION)
+	rm -rf openarena-$(VERSION)
+	svn export . openarena-$(VERSION)
+	tar --owner=root --group=root --force-local -cjf openarena-$(VERSION).tar.bz2 openarena-$(VERSION)
+	rm -rf openarena-$(VERSION)
 
 #############################################################################
 # DEPENDENCIES
