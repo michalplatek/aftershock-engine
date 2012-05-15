@@ -34,7 +34,7 @@ constant, irrespective of distance, but the intensity should be proportional to 
 projected area of the light source.
 
 A surface that has been flagged as having a light flare will calculate the depth
-buffer value that it's midpoint should have when the surface is added.
+buffer value that its midpoint should have when the surface is added.
 
 After all opaque surfaces have been rendered, the depth buffer is read back for
 each flare in view.  If the point has not been obscured by a closer surface, the
@@ -77,9 +77,10 @@ typedef struct flare_s {
 
 	vec3_t		origin;
 	vec3_t		color;
+	int		radius;				// leilei - for dynamic light flares
 } flare_t;
 
-#define		MAX_FLARES		128
+#define		MAX_FLARES		256 // was 128
 
 flare_t		r_flareStructs[MAX_FLARES];
 flare_t		*r_activeFlares, *r_inactiveFlares;
@@ -112,7 +113,7 @@ RB_AddFlare
 This is called at surface tesselation time
 ==================
 */
-void RB_AddFlare( void *surface, int fogNum, vec3_t point, vec3_t color, vec3_t normal ) {
+void RB_AddFlare( void *surface, int fogNum, vec3_t point, vec3_t color, vec3_t normal, int radii ) {
 	int				i;
 	flare_t			*f, *oldest;
 	vec3_t			local;
@@ -196,6 +197,8 @@ void RB_AddFlare( void *surface, int fogNum, vec3_t point, vec3_t color, vec3_t 
 	f->windowX = backEnd.viewParms.viewportX + window[0];
 	f->windowY = backEnd.viewParms.viewportY + window[1];
 
+	f->radius = radii / 3; // leilei - transfer the radius
+
 	f->eyeZ = eye[2];
 }
 
@@ -241,7 +244,8 @@ void RB_AddDlightFlares( void ) {
 		else
 			j = 0;
 
-		RB_AddFlare( (void *)l, j, l->origin, l->color, NULL );
+		//RB_AddFlare( (void *)l, j, l->origin, l->color, NULL );
+		RB_AddFlare( (void *)l, j, l->origin, l->color, NULL, l->radius * 0.6);
 	}
 }
 
@@ -283,7 +287,13 @@ void RB_TestFlare( flare_t *f ) {
 			f->visible = qtrue;
 			f->fadeTime = backEnd.refdef.time - 1;
 		}
-		fade = ( ( backEnd.refdef.time - f->fadeTime ) /1000.0f ) * r_flareFade->value;
+		if ( r_flares->integer == 1337 ) {
+			// - unreal style fading
+			fade = ( ( backEnd.refdef.time - f->fadeTime ) / 2600.0f ) * r_flareFade->value;
+		}
+		else {
+			fade = ( ( backEnd.refdef.time - f->fadeTime ) / 1000.0f ) * r_flareFade->value;
+		}
 	} else {
 		if ( f->visible ) {
 			f->visible = qfalse;
@@ -324,8 +334,12 @@ void RB_RenderFlare( flare_t *f ) {
 	else
 		distance = -f->eyeZ;
 
+	if(!f->radius)
+		f->radius = 0.0f;	// leilei - don't do a radius if there is no radius at all!
+
 	// calculate the flare size..
-	size = backEnd.viewParms.viewportWidth * ( r_flareSize->value/640.0f + 8 / distance );
+	// leilei - dynamic size support for the dynamic light kind of flares
+	size = backEnd.viewParms.viewportWidth * ( (r_flareSize->value + f->radius) /640.0f + 8 / distance );
 
 /*
  * This is an alternative to intensity scaling. It changes the size of the flare on screen instead
@@ -372,7 +386,8 @@ void RB_RenderFlare( flare_t *f ) {
 	iColor[1] = color[1] * fogFactors[1];
 	iColor[2] = color[2] * fogFactors[2];
 	
-	RB_BeginSurface( tr.flareShader, f->fogNum );
+	RB_BeginSurface( tr.flareShader, f->fogNum ); // TODO: custom flare texture here 
+						// (it's definable in q3map, but nothing uses it)
 
 	// FIXME: use quadstamp?
 	tess.xyz[tess.numVertexes][0] = f->windowX - size;
@@ -653,7 +668,8 @@ void RB_RenderFlares (void) {
 	backEnd.currentEntity = &tr.worldEntity;
 	backEnd.or = backEnd.viewParms.world;
 
-//	RB_AddDlightFlares();
+	if (r_flaresDlight->integer)
+		RB_AddDlightFlares();
 
 	// perform z buffer readback on each flare in this view
 	draw = qfalse;

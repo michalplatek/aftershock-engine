@@ -103,7 +103,7 @@ SV_SetConfigstring
 
 ===============
 */
-void SV_SetConfigstring (int index, const char *val, qboolean force) {
+void SV_SetConfigstring (int index, const char *val) {
 	int		i;
 	client_t	*client;
 
@@ -111,10 +111,6 @@ void SV_SetConfigstring (int index, const char *val, qboolean force) {
 		Com_Error (ERR_DROP, "SV_SetConfigstring: bad index %i\n", index);
 	}
 
-	// Don't allow the game to overwrite demo player configstrings
-	if ( !force && sv.demoState == DS_PLAYBACK && index >= CS_PLAYERS && index < CS_PLAYERS + sv_democlients->integer )
-		return;
-	
 	if ( !val ) {
 		val = "";
 	}
@@ -127,10 +123,6 @@ void SV_SetConfigstring (int index, const char *val, qboolean force) {
 	// change the string in sv
 	Z_Free( sv.configstrings[index] );
 	sv.configstrings[index] = CopyString( val );
-	
-	// save client strings to demo
-	if ( index >= CS_PLAYERS && index < CS_PLAYERS + sv_maxclients->integer && sv.demoState == DS_RECORDING )
-		SV_DemoWriteConfigString( index - CS_PLAYERS );
 
 	// send it to all the clients if we aren't
 	// spawning a new server
@@ -247,7 +239,7 @@ SV_BoundMaxClients
 
 ===============
 */
-/*static void SV_BoundMaxClients( int minimum ) {
+static void SV_BoundMaxClients( int minimum ) {
 	// get the current maxclients value
 	Cvar_Get( "sv_maxclients", "8", 0 );
 
@@ -258,7 +250,7 @@ SV_BoundMaxClients
 	} else if ( sv_maxclients->integer > MAX_CLIENTS ) {
 		Cvar_Set( "sv_maxclients", va("%i", MAX_CLIENTS) );
 	}
-}*/
+}
 
 
 /*
@@ -275,7 +267,7 @@ static void SV_Startup( void ) {
 	if ( svs.initialized ) {
 		Com_Error( ERR_FATAL, "SV_Startup: svs.initialized" );
 	}
-	/*SV_BoundMaxClients( 1 );
+	SV_BoundMaxClients( 1 );
 
 	svs.clients = Z_Malloc (sizeof(client_t) * sv_maxclients->integer );
 	if ( com_dedicated->integer ) {
@@ -283,8 +275,7 @@ static void SV_Startup( void ) {
 	} else {
 		// we don't need nearly as many when playing locally
 		svs.numSnapshotEntities = sv_maxclients->integer * 4 * 64;
-	}*/
-	SV_ChangeMaxClients();
+	}
 	svs.initialized = qtrue;
 
 	// Don't respect sv_killserver unless a server is actually running
@@ -306,71 +297,55 @@ SV_ChangeMaxClients
 */
 void SV_ChangeMaxClients( void ) {
 	int		oldMaxClients;
-	int		i,j;
+	int		i;
 	client_t	*oldClients;
 	int		count;
-	qboolean	firstTime = svs.clients == NULL;
-	
-	if( !firstTime ) {
-		// get the highest client number in use
-		for ( i = 0 ; i < sv_maxclients->integer ; i++ ) {
-			if ( svs.clients[i].state >= CS_CONNECTED ) {
-				count++;
-			}
+
+	// get the highest client number in use
+	count = 0;
+	for ( i = 0 ; i < sv_maxclients->integer ; i++ ) {
+		if ( svs.clients[i].state >= CS_CONNECTED ) {
+			if (i > count)
+				count = i;
 		}
 	}
+	count++;
 
 	oldMaxClients = sv_maxclients->integer;
-	// update the cvars
-	Cvar_Get( "sv_maxclients", "8", 0 );
-	Cvar_Get( "sv_democlients", "0", 0 );
-	sv_maxclients->modified = qfalse;
-	sv_democlients->modified = qfalse;
-	// make sure we have enough room for all clients
-	if ( sv_maxclients->integer < sv_democlients->integer + count ) {
-		Cvar_SetValue( "sv_maxclients", sv_democlients->integer + count );
-	}
+	// never go below the highest client number in use
+	SV_BoundMaxClients( count );
 	// if still the same
-	if ( !firstTime && sv_maxclients->integer == oldMaxClients ) {
-		// move people who are below sv_democlients up
-		for ( i = 0; i < sv_democlients->integer; i++ ) {
-			if ( svs.clients[i].state >= CS_CONNECTED ) {
-				for ( j = sv_democlients->integer; j < sv_maxclients->integer; j++ ) {
-					if ( svs.clients[j].state < CS_CONNECTED ) {
-						svs.clients[j] = svs.clients[i];
-						break;
-					}
-				}
-				Com_Memset( svs.clients + i, 0, sizeof(client_t) );
-			}
-		}
+	if ( sv_maxclients->integer == oldMaxClients ) {
 		return;
 	}
 
-	if ( !firstTime ) {
-		// copy the clients to hunk memory
-		oldClients = Hunk_AllocateTempMemory( count * sizeof(client_t) );
-		for ( i = 0, j = 0 ; i < oldMaxClients ; i++ ) {
-			if ( svs.clients[i].state >= CS_CONNECTED ) {
-				oldClients[j++] = svs.clients[i];
-			}
+	oldClients = Hunk_AllocateTempMemory( count * sizeof(client_t) );
+	// copy the clients to hunk memory
+	for ( i = 0 ; i < count ; i++ ) {
+		if ( svs.clients[i].state >= CS_CONNECTED ) {
+			oldClients[i] = svs.clients[i];
 		}
-		// free old clients arrays
-		Z_Free( svs.clients );
+		else {
+			Com_Memset(&oldClients[i], 0, sizeof(client_t));
+		}
 	}
+
+	// free old clients arrays
+	Z_Free( svs.clients );
 
 	// allocate new clients
 	svs.clients = Z_Malloc ( sv_maxclients->integer * sizeof(client_t) );
 	Com_Memset( svs.clients, 0, sv_maxclients->integer * sizeof(client_t) );
 
 	// copy the clients over
-	if ( !firstTime ) {
-		// copy the clients over
-		Com_Memcpy( svs.clients + sv_democlients->integer, oldClients, count * sizeof(client_t) );
-
-		// free the old clients on the hunk
-		Hunk_FreeTempMemory( oldClients );
+	for ( i = 0 ; i < count ; i++ ) {
+		if ( oldClients[i].state >= CS_CONNECTED ) {
+			svs.clients[i] = oldClients[i];
+		}
 	}
+
+	// free the old clients on the hunk
+	Hunk_FreeTempMemory( oldClients );
 	
 	// allocate new snapshot entities
 	if ( com_dedicated->integer ) {
@@ -624,9 +599,9 @@ void SV_SpawnServer( char *server, qboolean killBots ) {
 	// save systeminfo and serverinfo strings
 	Q_strncpyz( systemInfo, Cvar_InfoString_Big( CVAR_SYSTEMINFO ), sizeof( systemInfo ) );
 	cvar_modifiedFlags &= ~CVAR_SYSTEMINFO;
-	SV_SetConfigstring( CS_SYSTEMINFO, systemInfo, qtrue );
+	SV_SetConfigstring( CS_SYSTEMINFO, systemInfo );
 
-	SV_SetConfigstring( CS_SERVERINFO, Cvar_InfoString( CVAR_SERVERINFO ), qtrue );
+	SV_SetConfigstring( CS_SERVERINFO, Cvar_InfoString( CVAR_SERVERINFO ) );
 	cvar_modifiedFlags &= ~CVAR_SERVERINFO;
 
 	// any media configstring setting now should issue a warning
@@ -640,20 +615,6 @@ void SV_SpawnServer( char *server, qboolean killBots ) {
 	Hunk_SetMark();
 
 	Com_Printf ("-----------------------------------\n");
-	
-	// start recording a demo
-	if ( sv_autoDemo->integer ) {
-		qtime_t	now;
-		Com_RealTime( &now );
-		Cbuf_AddText( va( "demo_record %04d%02d%02d%02d%02d%02d-%s\n",
-			1900 + now.tm_year,
-			1 + now.tm_mon,
-			now.tm_mday,
-			now.tm_hour,
-			now.tm_min,
-			now.tm_sec,
-			server ) );
-	}
 }
 
 /*
@@ -663,7 +624,10 @@ SV_Init
 Only called at main exe startup, not for each game
 ===============
 */
-void SV_Init (void) {
+void SV_Init (void)
+{
+	int index;
+
 	SV_AddOperatorCommands ();
 
 	// serverinfo vars
@@ -673,15 +637,11 @@ void SV_Init (void) {
 	sv_gametype = Cvar_Get ("g_gametype", "0", CVAR_SERVERINFO | CVAR_LATCH );
 	sv_dorestart = Cvar_Get ("sv_dorestart", "0",0);
 	Cvar_Get ("sv_keywords", "", CVAR_SERVERINFO);
-	Cvar_Get ("protocol", va("%i", PROTOCOL_VERSION), CVAR_SERVERINFO | CVAR_ROM);
 	sv_mapname = Cvar_Get ("mapname", "nomap", CVAR_SERVERINFO | CVAR_ROM);
 	sv_privateClients = Cvar_Get ("sv_privateClients", "0", CVAR_SERVERINFO);
 	sv_hostname = Cvar_Get ("sv_hostname", "noname", CVAR_SERVERINFO | CVAR_ARCHIVE );
 	sv_maxclients = Cvar_Get ("sv_maxclients", "8", CVAR_SERVERINFO | CVAR_LATCH);
-	sv_democlients = Cvar_Get ("sv_democlients", "0", CVAR_SERVERINFO | CVAR_LATCH | CVAR_ARCHIVE);
-	
-	sv_demoState = Cvar_Get ("sv_demoState", "0", CVAR_ROM );
-	sv_autoDemo = Cvar_Get ("sv_autoDemo", "0", CVAR_ARCHIVE );
+	sv_autorecord = Cvar_Get ("sv_autorecord", "0", CVAR_ARCHIVE );
 
 	sv_minRate = Cvar_Get ("sv_minRate", "0", CVAR_ARCHIVE | CVAR_SERVERINFO );
 	sv_maxRate = Cvar_Get ("sv_maxRate", "0", CVAR_ARCHIVE | CVAR_SERVERINFO );
@@ -712,11 +672,11 @@ void SV_Init (void) {
 
 	sv_allowDownload = Cvar_Get ("sv_allowDownload", "0", CVAR_SERVERINFO);
 	Cvar_Get ("sv_dlURL", "", CVAR_SERVERINFO | CVAR_ARCHIVE);
-	sv_master[0] = Cvar_Get ("sv_master1", MASTER_SERVER_NAME, 0 );
-	sv_master[1] = Cvar_Get ("sv_master2", "", CVAR_ARCHIVE );
-	sv_master[2] = Cvar_Get ("sv_master3", "", CVAR_ARCHIVE );
-	sv_master[3] = Cvar_Get ("sv_master4", "", CVAR_ARCHIVE );
-	sv_master[4] = Cvar_Get ("sv_master5", "", CVAR_ARCHIVE );
+	
+	sv_master[0] = Cvar_Get("sv_master1", MASTER_SERVER_NAME, 0);
+	for(index = 1; index < MAX_MASTER_SERVERS; index++)
+		sv_master[index] = Cvar_Get(va("sv_master%d", index + 1), "", CVAR_ARCHIVE);
+
 	sv_reconnectlimit = Cvar_Get ("sv_reconnectlimit", "3", 0);
 	sv_showloss = Cvar_Get ("sv_showloss", "0", 0);
 	sv_padPackets = Cvar_Get ("sv_padPackets", "0", 0);
@@ -725,6 +685,8 @@ void SV_Init (void) {
 	sv_lanForceRate = Cvar_Get ("sv_lanForceRate", "1", CVAR_ARCHIVE );
 	sv_public = Cvar_Get( "sv_public", "0", 0);
 	sv_banFile = Cvar_Get("sv_banFile", "serverbans.dat", CVAR_ARCHIVE);
+	sv_heartbeat = Cvar_Get("sv_heartbeat", HEARTBEAT_FOR_MASTER, CVAR_INIT);
+	sv_flatline = Cvar_Get("sv_flatline", FLATLINE_FOR_MASTER, CVAR_INIT);
 
 	// initialize bot cvars so they are listed and can be set before loading the botlib
 	SV_BotInitCvars();
@@ -755,6 +717,9 @@ void SV_FinalMessage( char *message ) {
 	for ( j = 0 ; j < 2 ; j++ ) {
 		for (i=0, cl = svs.clients ; i < sv_maxclients->integer ; i++, cl++) {
 			if (cl->state >= CS_CONNECTED) {
+				if (cl->demorecording) {
+ 					SV_StopRecord( cl );
+ 				}
 				// don't send a disconnect to a local client
 				if ( cl->netchan.remoteAddress.type != NA_LOOPBACK ) {
 					SV_SendServerCommand( cl, "print \"%s\n\"\n", message );
@@ -778,11 +743,22 @@ before Sys_Quit or Sys_Error
 ================
 */
 void SV_Shutdown( char *finalmsg ) {
+	int			i;
+ 	client_t	*cl;
+
 	if ( !com_sv_running || !com_sv_running->integer ) {
 		return;
 	}
 
 	Com_Printf( "----- Server Shutdown (%s) -----\n", finalmsg );
+	
+	if (sv_autorecord->integer) {
+ 		for (i=0, cl = svs.clients ; i < sv_maxclients->integer ; i++, cl++) {
+ 			if (cl->state >= CS_CONNECTED && cl->demorecording) {
+ 				SV_StopRecord( cl );
+ 			}
+ 		}
+ 	}
 
 	NET_LeaveMulticast6();
 
@@ -793,13 +769,6 @@ void SV_Shutdown( char *finalmsg ) {
 	SV_RemoveOperatorCommands();
 	SV_MasterShutdown();
 	SV_ShutdownGameProgs();
-	
-	// stop any demos
-	if (sv.demoState == DS_RECORDING)
-		SV_DemoStopRecord();
-	if (sv.demoState == DS_PLAYBACK)
-		SV_DemoStopPlayback();
-
 
 	// free current level
 	SV_ClearServer();

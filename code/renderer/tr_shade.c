@@ -459,8 +459,17 @@ static void ProjectDlightTexture_altivec( void ) {
 		{
 			float luminance;
 			
-			luminance = (dl->color[0] * 255.0f + dl->color[1] * 255.0f + dl->color[2] * 255.0f) / 3;
+			luminance = LUMA(dl->color[0], dl->color[1], dl->color[2]) * 255.0f;
 			floatColor[0] = floatColor[1] = floatColor[2] = luminance;
+		}
+		else if(r_greyscale->value)
+		{
+			float luminance;
+			
+			luminance = LUMA(dl->color[0], dl->color[1], dl->color[2]) * 255.0f;
+			floatColor[0] = LERP(dl->color[0] * 255.0f, luminance, r_greyscale->value);
+			floatColor[1] = LERP(dl->color[1] * 255.0f, luminance, r_greyscale->value);
+			floatColor[2] = LERP(dl->color[2] * 255.0f, luminance, r_greyscale->value);
 		}
 		else
 		{
@@ -612,9 +621,18 @@ static void ProjectDlightTexture_scalar( void ) {
 		if(r_greyscale->integer)
 		{
 			float luminance;
-			
-			luminance = (dl->color[0] * 255.0f + dl->color[1] * 255.0f + dl->color[2] * 255.0f) / 3;
+
+			luminance = LUMA(dl->color[0], dl->color[1], dl->color[2]) * 255.0f;
 			floatColor[0] = floatColor[1] = floatColor[2] = luminance;
+		}
+		else if(r_greyscale->value)
+		{
+			float luminance;
+			
+			luminance = LUMA(dl->color[0], dl->color[1], dl->color[2]) * 255.0f;
+			floatColor[0] = LERP(dl->color[0] * 255.0f, luminance, r_greyscale->value);
+			floatColor[1] = LERP(dl->color[1] * 255.0f, luminance, r_greyscale->value);
+			floatColor[2] = LERP(dl->color[2] * 255.0f, luminance, r_greyscale->value);
 		}
 		else
 		{
@@ -885,7 +903,10 @@ static void ComputeColors( shaderStage_t *pStage )
 		RB_CalcWaveAlpha( &pStage->alphaWave, ( unsigned char * ) tess.svars.colors );
 		break;
 	case AGEN_LIGHTING_SPECULAR:
-		RB_CalcSpecularAlpha( ( unsigned char * ) tess.svars.colors );
+		if ( r_specMode->integer == 1)
+			RB_CalcSpecularAlphaNew( ( unsigned char * ) tess.svars.colors );
+		else
+			RB_CalcSpecularAlpha( ( unsigned char * ) tess.svars.colors );
 		break;
 	case AGEN_ENTITY:
 		RB_CalcAlphaFromEntity( ( unsigned char * ) tess.svars.colors );
@@ -964,11 +985,22 @@ static void ComputeColors( shaderStage_t *pStage )
 	if(r_greyscale->integer)
 	{
 		int scale;
+		for(i = 0; i < tess.numVertexes; i++)
+		{
+			scale = LUMA(tess.svars.colors[i][0], tess.svars.colors[i][1], tess.svars.colors[i][2]);
+ 			tess.svars.colors[i][0] = tess.svars.colors[i][1] = tess.svars.colors[i][2] = scale;
+		}
+	}
+	else if(r_greyscale->value)
+	{
+		float scale;
 		
 		for(i = 0; i < tess.numVertexes; i++)
 		{
-			scale = (tess.svars.colors[i][0] + tess.svars.colors[i][1] + tess.svars.colors[i][2]) / 3;
-			tess.svars.colors[i][0] = tess.svars.colors[i][1] = tess.svars.colors[i][2] = scale;
+			scale = LUMA(tess.svars.colors[i][0], tess.svars.colors[i][1], tess.svars.colors[i][2]);
+			tess.svars.colors[i][0] = LERP(tess.svars.colors[i][0], scale, r_greyscale->value);
+			tess.svars.colors[i][1] = LERP(tess.svars.colors[i][1], scale, r_greyscale->value);
+			tess.svars.colors[i][2] = LERP(tess.svars.colors[i][2], scale, r_greyscale->value);
 		}
 	}
 }
@@ -1015,7 +1047,15 @@ static void ComputeTexCoords( shaderStage_t *pStage ) {
 			RB_CalcFogTexCoords( ( float * ) tess.svars.texcoords[b] );
 			break;
 		case TCGEN_ENVIRONMENT_MAPPED:
-			RB_CalcEnvironmentTexCoords( ( float * ) tess.svars.texcoords[b] );
+			if ( r_envMode->integer == 1 ) { 
+				RB_CalcEnvironmentTexCoordsNew( ( float * ) tess.svars.texcoords[b] ); 
+			} // new dancing one
+			else if ( r_envMode->integer == 2 ) { 
+				RB_CalcEnvironmentTexCoordsHW(); 
+			} // odin's
+			else { 
+				RB_CalcEnvironmentTexCoords( ( float * ) tess.svars.texcoords[b] ); 
+			} // old one
 			break;
 		case TCGEN_BAD:
 			return;
@@ -1130,6 +1170,16 @@ static void RB_IterateStagesGeneric( shaderCommands_t *input )
 			//
 			R_DrawElements( input->numIndexes, input->indexes );
 		}
+
+		// odin's patch adapted
+		if ( r_envMode->integer == 2) {
+			if ( pStage->bundle[0].tcGen == TCGEN_ENVIRONMENT_MAPPED ) {
+				qglDisable(GL_TEXTURE_GEN_S);
+				qglDisable(GL_TEXTURE_GEN_T);
+				qglDisable(GL_TEXTURE_GEN_R);
+			}
+		}
+	
 		// allow skipping out to show just lightmaps during development
 		if ( r_lightmap->integer && ( pStage->bundle[0].isLightmap || pStage->bundle[1].isLightmap || pStage->bundle[0].vertexLightmap ) )
 		{

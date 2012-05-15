@@ -779,7 +779,6 @@ void		R_Modellist_f (void);
 extern	refimport_t		ri;
 
 #define	MAX_DRAWIMAGES			2048
-#define	MAX_LIGHTMAPS			256
 #define	MAX_SKINS				1024
 
 
@@ -918,7 +917,7 @@ typedef struct {
 	shader_t				*sunShader;
 
 	int						numLightmaps;
-	image_t					*lightmaps[MAX_LIGHTMAPS];
+	image_t					**lightmaps;
 
 	trRefEntity_t			*currentEntity;
 	trRefEntity_t			worldEntity;		// point currentEntity at this when rendering world
@@ -1065,7 +1064,6 @@ extern	cvar_t	*r_colorMipLevels;				// development aid to see texture mip usage
 extern	cvar_t	*r_picmip;						// controls picmip values
 extern	cvar_t	*r_finish;
 extern	cvar_t	*r_drawBuffer;
-extern  cvar_t  *r_glDriver;
 extern	cvar_t	*r_swapInterval;
 extern	cvar_t	*r_textureMode;
 extern	cvar_t	*r_offsetFactor;
@@ -1118,11 +1116,17 @@ extern	cvar_t	*r_saveFontData;
 
 extern cvar_t	*r_marksOnTriangleMeshes;
 
-extern	cvar_t	*r_GLlibCoolDownMsec;
-
 extern	cvar_t	*r_lensReflection1;
 extern	cvar_t	*r_lensReflection2;
 extern	cvar_t	*r_lensReflectionBrightness;
+
+
+extern	cvar_t	*r_envMode;		
+extern	cvar_t	*r_specMode;		
+//extern	cvar_t	*r_waveMode;	
+
+extern	cvar_t	*r_flaresDlight;
+extern	cvar_t	*r_flaresSurfradii;
 
 //====================================================================
 
@@ -1309,19 +1313,19 @@ typedef struct stageVars
 
 typedef struct shaderCommands_s 
 {
-	glIndex_t	indexes[SHADER_MAX_INDEXES] ALIGN(16);
-	vec4_t		xyz[SHADER_MAX_VERTEXES] ALIGN(16);
-	vec4_t		normal[SHADER_MAX_VERTEXES] ALIGN(16);
-	vec2_t		texCoords[SHADER_MAX_VERTEXES][2] ALIGN(16);
-	color4ub_t	vertexColors[SHADER_MAX_VERTEXES] ALIGN(16);
-	int			vertexDlightBits[SHADER_MAX_VERTEXES] ALIGN(16);
+	glIndex_t	indexes[SHADER_MAX_INDEXES] QALIGN(16);
+	vec4_t		xyz[SHADER_MAX_VERTEXES] QALIGN(16);
+	vec4_t		normal[SHADER_MAX_VERTEXES] QALIGN(16);
+	vec2_t		texCoords[SHADER_MAX_VERTEXES][2] QALIGN(16);
+	color4ub_t	vertexColors[SHADER_MAX_VERTEXES] QALIGN(16);
+	int			vertexDlightBits[SHADER_MAX_VERTEXES] QALIGN(16);
 
-	stageVars_t	svars ALIGN(16);
+	stageVars_t	svars QALIGN(16);
 
-	color4ub_t	constantColor255[SHADER_MAX_VERTEXES] ALIGN(16);
+	color4ub_t	constantColor255[SHADER_MAX_VERTEXES] QALIGN(16);
 
 	shader_t	*shader;
-  float   shaderTime;
+	float		shaderTime;
 	int			fogNum;
 
 	int			dlightBits;	// or together of all vertexDlightBits
@@ -1377,7 +1381,7 @@ FLARES
 
 void R_ClearFlares( void );
 
-void RB_AddFlare( void *surface, int fogNum, vec3_t point, vec3_t color, vec3_t normal );
+void RB_AddFlare( void *surface, int fogNum, vec3_t point, vec3_t color, vec3_t normal, int radii );
 void RB_AddDlightFlares( void );
 void RB_RenderFlares (void);
 
@@ -1528,6 +1532,8 @@ void	R_TransformClipToWindow( const vec4_t clip, const viewParms_t *view, vec4_t
 void	RB_DeformTessGeometry( void );
 
 void	RB_CalcEnvironmentTexCoords( float *dstTexCoords );
+void	RB_CalcEnvironmentTexCoordsNew( float *dstTexCoords );
+void	RB_CalcEnvironmentTexCoordsHW(void);
 void	RB_CalcFogTexCoords( float *dstTexCoords );
 void	RB_CalcScrollTexCoords( const float scroll[2], float *dstTexCoords );
 void	RB_CalcRotateTexCoords( float rotSpeed, float *dstTexCoords );
@@ -1545,6 +1551,7 @@ void	RB_CalcStretchTexCoords( const waveForm_t *wf, float *texCoords );
 void	RB_CalcColorFromEntity( unsigned char *dstColors );
 void	RB_CalcColorFromOneMinusEntity( unsigned char *dstColors );
 void	RB_CalcSpecularAlpha( unsigned char *alphas );
+void	RB_CalcSpecularAlphaNew( unsigned char *alphas );
 void	RB_CalcDiffuseColor( unsigned char *colors );
 
 /*
