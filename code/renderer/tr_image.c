@@ -229,15 +229,17 @@ If a larger shrinking is needed, use the mipmap function
 before or after.
 ================
 */
+#define RESAMPLE_PIXELS 4096
+
 static void ResampleTexture( unsigned *in, int inwidth, int inheight, unsigned *out,  
 							int outwidth, int outheight ) {
 	int		i, j;
 	unsigned	*inrow, *inrow2;
 	unsigned	frac, fracstep;
-	unsigned	p1[2048], p2[2048];
+	unsigned	p1[RESAMPLE_PIXELS], p2[RESAMPLE_PIXELS];
 	byte		*pix1, *pix2, *pix3, *pix4;
 
-	if (outwidth>2048)
+	if (outwidth>RESAMPLE_PIXELS)
 		ri.Error(ERR_DROP, "ResampleTexture: max width");
 								
 	fracstep = inwidth*0x10000/outwidth;
