@@ -362,9 +362,10 @@ extern	vec4_t		colorLtGrey;
 extern	vec4_t		colorMdGrey;
 extern	vec4_t		colorDkGrey;
 
-#define NUMBER_OF_COLORS 9
+#define NUMBER_OF_COLORS 62
 #define Q_COLOR_ESCAPE	'^'
-#define Q_IsColorString(p)      ((p) && *(p) == Q_COLOR_ESCAPE && *((p)+1) && *((p)+1) >= '0' && *((p)+1) <= '8') // ^[0-8]
+//#define Q_IsColorString(p)      ((p) && *(p) == Q_COLOR_ESCAPE && *((p)+1) && *((p)+1) >= '0' && *((p)+1) <= '8') // ^[0-8]
+#define Q_IsColorString(p)      ((p) && *(p) == Q_COLOR_ESCAPE && *((p)+1) && ( ( *((p)+1) >= '0' && *((p)+1) <= '9' ) || ( *((p)+1) >= 'a' && *((p)+1) <= 'z' ) || ( *((p)+1) >= 'A' && *((p)+1) <= 'Z') ) )
 #define COLOR_BLACK		'0'
 #define COLOR_RED		'1'
 #define COLOR_GREEN		'2'
@@ -374,7 +375,10 @@ extern	vec4_t		colorDkGrey;
 #define COLOR_MAGENTA	'6'
 #define COLOR_WHITE		'7'
 #define COLOR_MENU      '8'
-#define ColorIndex(c)   ((c) - '0')
+
+//#define ColorIndex(c)   ((c) - '0')
+
+#define ColorIndex(c)   ( (((c)) >= 'A' && ((c)) <= 'Z') ? (((c))-'A'+36) : ((((c)) >= 'a' && ((c)) <= 'z')?(((c))-'a'+10):(((c))-'0')) )
 
 #define S_COLOR_BLACK	"^0"
 #define S_COLOR_RED		"^1"
@@ -386,7 +390,9 @@ extern	vec4_t		colorDkGrey;
 #define S_COLOR_WHITE	"^7"
 #define S_COLOR_MENU	"^8"
 
-extern vec4_t	g_color_table[NUMBER_OF_COLORS];
+#define MAX_CCODES	62
+
+extern vec4_t	g_color_table[MAX_CCODES];
 
 #define	MAKERGB( v, r, g, b ) v[0]=r;v[1]=g;v[2]=b
 #define	MAKERGBA( v, r, g, b, a ) v[0]=r;v[1]=g;v[2]=b;v[3]=a
