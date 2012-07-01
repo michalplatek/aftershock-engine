@@ -107,6 +107,8 @@ cvar_t *cl_consoleHeight;
 
 cvar_t  *cl_gamename;
 
+cvar_t *cl_demoRecordMessage;
+
 clientActive_t		cl;
 clientConnection_t	clc;
 clientStatic_t		cls;
@@ -3252,7 +3254,7 @@ void CL_Init( void ) {
 		Cvar_Set("cl_voip", "0");
 	}
 #endif
-
+	cl_demoRecordMessage = Cvar_Get ("cl_demoRecordMessage", "1", CVAR_ARCHIVE );
 
 	// cgame might not be initialized before menu is used
 	Cvar_Get ("cg_viewsize", "100", CVAR_ARCHIVE );
