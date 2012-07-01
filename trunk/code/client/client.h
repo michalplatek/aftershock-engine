@@ -430,6 +430,8 @@ extern	cvar_t	*cl_voipShowMeter;
 extern	cvar_t	*cl_voip;
 #endif
 
+extern  cvar_t  *cl_demoRecordMessage;
+
 //=================================================
 
 //
