@@ -1588,6 +1588,111 @@ void CL_Connect_f( void ) {
 	Cvar_Set( "cl_currentServerAddress", server );
 }
 
+/*
+================
+CL_Connect_f
+
+================
+*/
+void CL_ConnectAscon_f( void ) {
+	char	*server;
+	char    *buffer;
+	int i;
+	const char	*serverString;
+	int argc = Cmd_Argc();
+	netadrtype_t family = NA_UNSPEC;
+
+	if ( argc != 2 && argc != 3 ) {
+		Com_Printf( "usage: connect [-4|-6] ascon://server\n");
+		return;	
+	}
+	
+	if(argc == 2)
+		server = Cmd_Argv(1);
+	else
+	{
+		if(!strcmp(Cmd_Argv(1), "-4"))
+			family = NA_IP;
+		else if(!strcmp(Cmd_Argv(1), "-6"))
+			family = NA_IP6;
+		else
+			Com_Printf( "warning: only -4 or -6 as address type understood.\n");
+		
+		server = Cmd_Argv(2);
+	}
+	
+	//remove ascon:// from string
+	if( strncmp( server , "ascon:", 5 ) != 0 ){
+		Com_Printf( "The given link is no ascon link\n");
+		return;	
+	}
+	//Hack, only ip v4 supported
+	buffer = Cmd_Cmd();
+	for( i = 0; i < 21 && buffer[i+14]; i++) {
+		server[i] = buffer[i+14];
+	}
+	server[i] = '\0';
+	
+	Cvar_Set("ui_singlePlayerActive", "0");
+
+	// fire a message off to the motd server
+	CL_RequestMotd();
+
+	// clear any previous "server full" type messages
+	clc.serverMessage[0] = 0;
+
+	if ( com_sv_running->integer && !strcmp( server, "localhost" ) ) {
+		// if running a local server, kill it
+		SV_Shutdown( "Server quit" );
+	}
+
+	// make sure a local server is killed
+	Cvar_Set( "sv_killserver", "1" );
+	SV_Frame( 0 );
+
+	CL_Disconnect( qtrue );
+	Con_Close();
+
+	Q_strncpyz( cls.servername, server, sizeof(cls.servername) );
+	
+	if (!NET_StringToAdr(cls.servername, &clc.serverAddress, family) ) {
+		Com_Printf ("Bad server address\n");
+		cls.state = CA_DISCONNECTED;
+		return;
+	}
+	if (clc.serverAddress.port == 0) {
+		clc.serverAddress.port = BigShort( PORT_SERVER );
+	}
+
+	serverString = NET_AdrToStringwPort(clc.serverAddress);
+
+	Com_Printf( "%s resolved to %s\n", cls.servername, serverString);
+
+	if( cl_guidServerUniq->integer )
+		CL_UpdateGUID( serverString, strlen( serverString ) );
+	else
+		CL_UpdateGUID( NULL, 0 );
+
+	// if we aren't playing on a lan, we need to authenticate
+	// with the cd key
+	if(NET_IsLocalAddress(clc.serverAddress))
+		cls.state = CA_CHALLENGING;
+	else
+	{
+		cls.state = CA_CONNECTING;
+		
+		// Set a client challenge number that ideally is mirrored back by the server.
+		clc.challenge = ((rand() << 16) ^ rand()) ^ Com_Milliseconds();
+	}
+
+	Key_SetCatcher( 0 );
+	clc.connectTime = -99999;	// CL_CheckForResend() will fire immediately
+	clc.connectPacketCount = 0;
+
+	// server connection string
+	Cvar_Set( "cl_currentServerAddress", server );
+}
+
 #define MAX_RCON_MESSAGE 1024
 
 /*
@@ -3276,6 +3381,7 @@ void CL_Init( void ) {
 	Cmd_AddCommand ("cinematic", CL_PlayCinematic_f);
 	Cmd_AddCommand ("stoprecord", CL_StopRecord_f);
 	Cmd_AddCommand ("connect", CL_Connect_f);
+	Cmd_AddCommand ("ascon", CL_ConnectAscon_f);
 	Cmd_AddCommand ("reconnect", CL_Reconnect_f);
 	Cmd_AddCommand ("localservers", CL_LocalServers_f);
 	Cmd_AddCommand ("globalservers", CL_GlobalServers_f);
