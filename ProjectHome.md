@@ -1,0 +1,1 @@
+The engine code for the AfterShock game, for more information about AfterShock visit our page at http://www.aftershock-fps.de
